@@ -5,13 +5,8 @@
  */
 package keydistributioncenter;
 
-import messages.UserKeyPair;
-import gui.KdcGui;
-import java.security.NoSuchAlgorithmException;
+import messages.NameKeyPair;
 import java.util.ArrayList;
-import java.util.Scanner;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 
 /**
  *
@@ -21,17 +16,22 @@ public class KeyDistributionCenter {
 
     private AuthenticationServer as;
     private TicketGrantingService tgs;
-    private ArrayList<UserKeyPair> userKeyPairs;
+    private ArrayList<NameKeyPair> userKeyPairs;
+    private ArrayList<NameKeyPair> serviceKeyPairs;
     private DesCodec desCodec;
     private NewClientServer newClientServer;
+    private NewServiceServer newServiceServer;
     
     public KeyDistributionCenter() {
         this.userKeyPairs = new ArrayList();
+        this.serviceKeyPairs = new ArrayList();
         this.as = new AuthenticationServer();
         this.tgs = new TicketGrantingService();
         this.newClientServer = new NewClientServer(this);
+        this.newServiceServer = new NewServiceServer(this);
         as.start();
         newClientServer.start();
+        newServiceServer.start();
     }
 
     public AuthenticationServer getAs() {
@@ -42,8 +42,12 @@ public class KeyDistributionCenter {
         return tgs;
     }
 
-    public ArrayList<UserKeyPair> getUserKeyPairs() {
+    public ArrayList<NameKeyPair> getUserKeyPairs() {
         return userKeyPairs;
+    }
+
+    public ArrayList<NameKeyPair> getServiceKeyPairs() {
+        return serviceKeyPairs;
     }
 
     public DesCodec getDesCodec() {

@@ -5,14 +5,10 @@
  */
 package client;
 
-import messages.UserKeyPair;
-import gui.ClientFrame;
+import static messages.Serializer.*;
+import messages.NameKeyPair;
 import gui.CreateClientFrame;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -29,10 +25,10 @@ import javax.swing.JOptionPane;
 public class Client extends Thread {
 
     private static final int PACKET_SIZE = 65535;
-    private static final int PORT_NUMBER = 6789;
+    private static final int NEW_CLIENT_SERVER_PORT_NUMBER = 8000;
     private DatagramSocket socket;
     private String username;
-    private SecretKey key;
+    private SecretKey clientKey;
     
     public Client() {
         this.socket = null;
@@ -40,6 +36,7 @@ public class Client extends Thread {
     
     @Override
     public void run() {
+        // UDP client code
 //        try {
 //            socket = new DatagramSocket();
 //            
@@ -66,34 +63,35 @@ public class Client extends Thread {
     
     public void createClient(String user, String kdcIpAddress) throws NoSuchAlgorithmException {
         try {
+            // Creating user and clientKey pair
+            this.username = user;
+            this.clientKey = KeyGenerator.getInstance("DES").generateKey();
+            NameKeyPair newClient = new NameKeyPair(user, clientKey);
+            
+            // Starting socket and sending request to create user
             socket = new DatagramSocket();
-            
-            username = user;
-            SecretKey key = KeyGenerator.getInstance("DES").generateKey();
-            
-            UserKeyPair newClient = new UserKeyPair(user, key);
-            
-            System.out.println(kdcIpAddress);
             byte[] outputBuffer = serializeObject(newClient);
             InetAddress host = InetAddress.getByName(kdcIpAddress);
-            DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, PORT_NUMBER);
+            DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, NEW_CLIENT_SERVER_PORT_NUMBER);
             socket.send(request);
             
+            // Prepares and waits for the KDC response
+            // Not scalable! I chose not to create handlers in separate threads
+            // given that this is being developed only for educational purposes
             byte[] inputBuffer = new byte[PACKET_SIZE];
             DatagramPacket response = new DatagramPacket(inputBuffer, inputBuffer.length);
             socket.receive(response);
             
+            // Determines whether the username was already taken on the KDC 
             boolean uniqueUsername = (boolean) deserializeObject(inputBuffer);
-
             if (uniqueUsername) {
-                JOptionPane.showMessageDialog(null, "Your username and key were sucessfully stored at the KDC.");
+                JOptionPane.showMessageDialog(null, "Your username and clientKey were sucessfully stored at the KDC.");
             } else {
                 JOptionPane.showMessageDialog(null, "This username is taken.");
                 CreateClientFrame createClientFrame = new CreateClientFrame(this);
                 createClientFrame.setVisible(true);
             }
             
-            System.out.println("Reply: " + new String(response.getData()));
         } catch (SocketException e) {
             System.out.println("ERROR | Socket: " + e.getMessage());
         } catch (IOException e) {
@@ -102,42 +100,6 @@ public class Client extends Thread {
             if(socket != null)
                 socket.close();
         }
-    }
-    
-    public static byte[] serializeObject(Object object) {
-        byte[] serializedObject = null;
-
-        try {
-            ObjectOutputStream objectOut = null;
-            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            objectOut = new ObjectOutputStream(byteOut);
-            objectOut.writeObject(object);
-            serializedObject = byteOut.toByteArray();
-            return serializedObject;
-        } catch (IOException ex) {
-            System.out.println("ERROR | Not able to serialize object of class " + object.getClass().getName());
-        }
-        return serializedObject;
-    }
-    
-    public static Object deserializeObject(byte[] outputBuffer) {
-        ObjectInputStream objectIn = null;
-        Object object = null;
-        
-        try {
-            ByteArrayInputStream byteIn = new ByteArrayInputStream(outputBuffer);
-            objectIn = new ObjectInputStream(byteIn);
-            object = objectIn.readObject();
-        } catch (IOException | ClassNotFoundException ex) {
-            System.out.println("ERROR | Not able to deserialize object of class " + object.getClass().getName());
-        } finally {
-            try {
-                objectIn.close();
-            } catch (IOException ex) {
-                System.out.println("ERROR | Not able to deserialize object of class " + object.getClass().getName());
-            }
-        }
-        return object;
     }
     
     public static void main(String[] args) throws IOException {

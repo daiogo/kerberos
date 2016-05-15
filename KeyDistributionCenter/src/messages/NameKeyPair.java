@@ -12,17 +12,17 @@ import javax.crypto.SecretKey;
  *
  * @author Diogo
  */
-public class UserKeyPair implements Serializable {
-    private String user;
+public class NameKeyPair implements Serializable {
+    private String name;
     private SecretKey key;
 
-    public UserKeyPair(String user, SecretKey key) {
-        this.user = user;
+    public NameKeyPair(String name, SecretKey key) {
+        this.name = name;
         this.key = key;
     }
 
-    public String getUser() {
-        return user;
+    public String getName() {
+        return name;
     }
 
     public SecretKey getKey() {

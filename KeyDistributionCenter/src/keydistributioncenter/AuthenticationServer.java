@@ -9,6 +9,9 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 
 /**
  *
@@ -17,17 +20,22 @@ import java.net.SocketException;
 public class AuthenticationServer extends Thread {
     
     private static final int PACKET_SIZE = 65535;
-    private static final int PORT_NUMBER = 6790;
+    private static final int AUTHENTICATION_SERVER_PORT_NUMBER = 8002;
     private DatagramSocket socket;
+    private DateFormat dateFormat;
+    private Calendar calendar;
     
     public AuthenticationServer() {
         this.socket = null;
+        this.dateFormat = new SimpleDateFormat("dd/MM/yy HH:mm:ss");
+        this.calendar = Calendar.getInstance();
+        System.out.println("Created AS at " + dateFormat.format(calendar.getTime()));
     }
     
     @Override
     public void run() {
         try {
-            socket = new DatagramSocket(PORT_NUMBER);
+            socket = new DatagramSocket(AUTHENTICATION_SERVER_PORT_NUMBER);
             
             byte[] buffer = new byte[PACKET_SIZE];
             

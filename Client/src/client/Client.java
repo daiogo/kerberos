@@ -7,7 +7,7 @@ package client;
 
 import gui.ClientFrame;
 import static messages.Serializer.*;
-import messages.NameKeyPair;
+import messages.*;
 import gui.CreateClientFrame;
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -18,7 +18,6 @@ import java.security.NoSuchAlgorithmException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
-import java.util.Date;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.swing.JOptionPane;
@@ -49,19 +48,27 @@ public class Client extends Thread {
     
     @Override
     public void run() {
+        // Gets the service the client wants to connect with
+        String desiredService = (String) JOptionPane.showInputDialog("Enter the name of the service you want to connect with");
+        
         // UDP client code
         try {
-            String outputBuffer = "MEH";
-            byte [] m = outputBuffer.getBytes();
+            // Creates AuthenticationRequest message
+            AuthenticationRequest authenticationRequest = new AuthenticationRequest(username, desiredService);
+            byte [] outputBuffer = serializeObject(authenticationRequest);
             
+            // Creates socket and sends message to the KDC
             socket = new DatagramSocket();
             InetAddress host = InetAddress.getByName(kdcIpAddress);
-            DatagramPacket request = new DatagramPacket(m, outputBuffer.length(), host, AUTHENTICATION_SERVER_PORT_NUMBER);
+            DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, AUTHENTICATION_SERVER_PORT_NUMBER);
             socket.send(request);
             
+            // Gets response from the AS
             byte[] inputBuffer = new byte[PACKET_SIZE];
             DatagramPacket response = new DatagramPacket(inputBuffer, inputBuffer.length);
             socket.receive(response);
+            
+            // Handles AS response
             
             System.out.println("Reply: " + new String(response.getData()));
         } catch (SocketException e) {

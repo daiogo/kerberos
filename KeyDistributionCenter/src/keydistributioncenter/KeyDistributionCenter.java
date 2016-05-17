@@ -5,8 +5,10 @@
  */
 package keydistributioncenter;
 
+import java.security.NoSuchAlgorithmException;
 import messages.NameKeyPair;
 import java.util.ArrayList;
+import javax.crypto.SecretKey;
 
 /**
  *
@@ -22,11 +24,11 @@ public class KeyDistributionCenter {
     private NewClientServer newClientServer;
     private NewServiceServer newServiceServer;
     
-    public KeyDistributionCenter() {
+    public KeyDistributionCenter() throws NoSuchAlgorithmException {
         this.userKeyPairs = new ArrayList();
         this.serviceKeyPairs = new ArrayList();
-        this.as = new AuthenticationServer();
         this.tgs = new TicketGrantingService();
+        this.as = new AuthenticationServer(tgs, this);
         this.newClientServer = new NewClientServer(this);
         this.newServiceServer = new NewServiceServer(this);
         as.start();
@@ -49,9 +51,13 @@ public class KeyDistributionCenter {
     public ArrayList<NameKeyPair> getServiceKeyPairs() {
         return serviceKeyPairs;
     }
-
-    public DesCodec getDesCodec() {
-        return desCodec;
+    
+    public SecretKey findClientKey(String clientName) {
+        for (NameKeyPair pair : userKeyPairs) {
+            if (pair.getName().equals(clientName))
+                return pair.getKey();
+        }
+        return null;
     }
 
     public static void main(String[] args) throws Exception {

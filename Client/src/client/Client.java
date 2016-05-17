@@ -18,9 +18,13 @@ import java.security.NoSuchAlgorithmException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.swing.JOptionPane;
+import static keydistributioncenter.DesCodec.decode;
 
 /**
  *
@@ -68,13 +72,24 @@ public class Client extends Thread {
             DatagramPacket response = new DatagramPacket(inputBuffer, inputBuffer.length);
             socket.receive(response);
             
-            // Handles AS response
+            // Deserialize and gather information about received packet
+            Object object = deserializeObject(response.getData());
+            String objectName = object.getClass().getName();
             
-            System.out.println("Reply: " + new String(response.getData()));
+            // Handles AS response
+            if (objectName.equals("messages.AuthenticationResponse")) {                
+                AuthenticationResponse authenticationResponse = (AuthenticationResponse) object;
+
+                    System.out.println("Session key: " + (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey)));
+                    System.out.println("Random: " + (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey)));
+            }
+
         } catch (SocketException e) {
             System.out.println("ERROR | Socket: " + e.getMessage());
         } catch (IOException e) {
             System.out.println("ERROR | IO: " + e.getMessage());
+        } catch (Exception ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         } finally {
             if(socket != null)
                 socket.close();

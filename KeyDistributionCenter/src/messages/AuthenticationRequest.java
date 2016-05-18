@@ -22,7 +22,7 @@ public class AuthenticationRequest implements Serializable {
     private DateFormat dateFormat;      // Allows dates to be printable as strings
     private Calendar calendar;          // Gets current date and time
     private Date expirationDate;        // Holds the expiration date value
-    private int randomNumber;           // Random number used as a challenge–response authentication
+    private int asRandomNumber;           // Random number used as a challenge–response authentication
 
     public AuthenticationRequest(String clientName, String serviceName) {
         this.clientName = clientName;
@@ -31,7 +31,7 @@ public class AuthenticationRequest implements Serializable {
         this.calendar = Calendar.getInstance();
         this.calendar.add(Calendar.MINUTE, 2);      // Makes expiration date 2 minutes from now
         this.expirationDate = calendar.getTime();
-        this.randomNumber = new Random().nextInt();
+        this.asRandomNumber = new Random().nextInt();
     }
 
     public String getClientName() {
@@ -50,8 +50,8 @@ public class AuthenticationRequest implements Serializable {
         return calendar;
     }
 
-    public int getRandomNumber() {
-        return randomNumber;
+    public int getAsRandomNumber() {
+        return asRandomNumber;
     }
     
     

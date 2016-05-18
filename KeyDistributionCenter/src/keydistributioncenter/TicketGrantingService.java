@@ -15,17 +15,12 @@ import javax.crypto.SecretKey;
  */
 public class TicketGrantingService {
     private SecretKey tgsKey;
-    private SecretKey tgsSessionKey;
     
     public TicketGrantingService() throws NoSuchAlgorithmException {
-        this.tgsSessionKey = KeyGenerator.getInstance("DES").generateKey();
+        this.tgsKey = KeyGenerator.getInstance("DES").generateKey();
     }
     public SecretKey getTgsKey() {
         return tgsKey;
     }
 
-    public SecretKey getTgsSessionKey() {
-        return tgsSessionKey;
-    }
-    
 }

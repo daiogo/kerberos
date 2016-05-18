@@ -18,15 +18,16 @@ public class KeyDistributionCenter {
 
     private AuthenticationServer as;
     private TicketGrantingService tgs;
-    private ArrayList<NameKeyPair> userKeyPairs;
+    private ArrayList<NameKeyPair> clientKeyPairs;
     private ArrayList<NameKeyPair> serviceKeyPairs;
-    private DesCodec desCodec;
+    private ArrayList<Request> requests;
     private NewClientServer newClientServer;
     private NewServiceServer newServiceServer;
     
     public KeyDistributionCenter() throws NoSuchAlgorithmException {
-        this.userKeyPairs = new ArrayList();
+        this.clientKeyPairs = new ArrayList();
         this.serviceKeyPairs = new ArrayList();
+        this.requests = new ArrayList();
         this.tgs = new TicketGrantingService();
         this.as = new AuthenticationServer(tgs, this);
         this.newClientServer = new NewClientServer(this);
@@ -44,16 +45,20 @@ public class KeyDistributionCenter {
         return tgs;
     }
 
-    public ArrayList<NameKeyPair> getUserKeyPairs() {
-        return userKeyPairs;
+    public ArrayList<NameKeyPair> getClientKeyPairs() {
+        return clientKeyPairs;
     }
 
     public ArrayList<NameKeyPair> getServiceKeyPairs() {
         return serviceKeyPairs;
     }
+
+    public ArrayList<Request> getRequests() {
+        return requests;
+    }
     
     public SecretKey findClientKey(String clientName) {
-        for (NameKeyPair pair : userKeyPairs) {
+        for (NameKeyPair pair : clientKeyPairs) {
             if (pair.getName().equals(clientName))
                 return pair.getKey();
         }

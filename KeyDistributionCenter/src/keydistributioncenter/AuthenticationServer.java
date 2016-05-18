@@ -16,6 +16,7 @@ import java.util.Calendar;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import messages.*;
 import static messages.Serializer.*;
@@ -27,7 +28,7 @@ import static keydistributioncenter.DesCodec.*;
 public class AuthenticationServer extends Thread {
     
     private static final int PACKET_SIZE = 65535;
-    private static final int AUTHENTICATION_SERVER_PORT_NUMBER = 8002;
+    private static final int AS_PORT_NUMBER = 8002;
     private KeyDistributionCenter myKdc;
     private TicketGrantingService myTgs;
     private DatagramSocket socket;
@@ -46,7 +47,7 @@ public class AuthenticationServer extends Thread {
     @Override
     public void run() {
         try {
-            socket = new DatagramSocket(AUTHENTICATION_SERVER_PORT_NUMBER);
+            socket = new DatagramSocket(AS_PORT_NUMBER);
             
             byte[] inputBuffer = new byte[PACKET_SIZE];
             byte[] outputBuffer = new byte[PACKET_SIZE];
@@ -64,14 +65,15 @@ public class AuthenticationServer extends Thread {
                     AuthenticationRequest authenticationRequest = (AuthenticationRequest) object;
                     String clientName = authenticationRequest.getClientName();
                     SecretKey clientKey = myKdc.findClientKey(clientName);
-                
+                    
                     // Create AuthenticationResponse
-                    TicketGrantingTicket tgt = new TicketGrantingTicket(clientName, myTgs.getTgsSessionKey());
+                    SecretKey tgsSessionKey = KeyGenerator.getInstance("DES").generateKey();
+                    TicketGrantingTicket tgt = new TicketGrantingTicket(clientName, tgsSessionKey);
                     
                     AuthenticationResponse authenticationResponse = new AuthenticationResponse(
-                            encode(serializeObject(myTgs.getTgsSessionKey()), clientKey),
+                            encode(serializeObject(tgsSessionKey), clientKey),
                             encode(serializeObject(new Random().nextInt()), clientKey),
-                            encode(serializeObject(tgt), myTgs.getTgsSessionKey()));
+                            encode(serializeObject(tgt), myTgs.getTgsKey()));
 
                     System.out.println("Session key: " + (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey)));
                     System.out.println("Random: " + (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey)));
@@ -80,6 +82,9 @@ public class AuthenticationServer extends Thread {
                     
                     DatagramPacket reply = new DatagramPacket(outputBuffer, outputBuffer.length, request.getAddress(), request.getPort());
                     socket.send(reply);
+                    
+                    // Stores data into requests database for future reference by the TGS
+                    myKdc.getRequests().add(new Request(authenticationRequest, tgt, tgsSessionKey));
                     
                 }
                 

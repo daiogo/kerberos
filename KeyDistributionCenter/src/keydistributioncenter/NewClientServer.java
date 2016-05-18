@@ -48,7 +48,7 @@ public class NewClientServer extends Thread {
                     NameKeyPair newClient = (NameKeyPair) object;
 
                     // Checks if username exists                    
-                    for (NameKeyPair pair : myKdc.getUserKeyPairs()) {                        
+                    for (NameKeyPair pair : myKdc.getClientKeyPairs()) {                        
                         if (pair.getName().equals(newClient.getName())) {
                             uniqueUsername = false;
                             break;
@@ -57,7 +57,7 @@ public class NewClientServer extends Thread {
                     
                     // Updates database
                     if (uniqueUsername) {
-                        myKdc.getUserKeyPairs().add(newClient);
+                        myKdc.getClientKeyPairs().add(newClient);
                     }
                     
                 } else {

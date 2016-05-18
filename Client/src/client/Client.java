@@ -15,16 +15,15 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.KeyGenerator;
+import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
 import javax.swing.JOptionPane;
-import static keydistributioncenter.DesCodec.decode;
+import static keydistributioncenter.DesCodec.*;
 
 /**
  *
@@ -34,40 +33,39 @@ public class Client extends Thread {
 
     private static final int PACKET_SIZE = 65535;
     private static final int NEW_CLIENT_SERVER_PORT_NUMBER = 8000;
-    private static final int AUTHENTICATION_SERVER_PORT_NUMBER = 8002;
+    private static final int AS_PORT_NUMBER = 8002;
+    private static final int TGS_PORT_NUMBER = 8003;
     private DatagramSocket socket;
-    private String username;
+    private String clientName;
     private String kdcIpAddress;
+    private InetAddress host;
     private SecretKey clientKey;
     private boolean uniqueUsername;
-    private DateFormat dateFormat;
     private Calendar calendar;
+    private ArrayList<AuthenticationRequest> requests;
     
     public Client() {
         this.socket = null;
-        this.dateFormat = new SimpleDateFormat("dd/MM/yy HH:mm:ss");
         this.calendar = Calendar.getInstance();
-        System.out.println("Created client at " + dateFormat.format(calendar.getTime()));
+        this.requests = new ArrayList();
     }
     
-    @Override
-    public void run() {
+    public void authenticate() {
         // Gets the service the client wants to connect with
         String desiredService = (String) JOptionPane.showInputDialog("Enter the name of the service you want to connect with");
         
         // UDP client code
         try {
             // Creates AuthenticationRequest message
-            AuthenticationRequest authenticationRequest = new AuthenticationRequest(username, desiredService);
+            AuthenticationRequest authenticationRequest = new AuthenticationRequest(clientName, desiredService);
+            requests.add(authenticationRequest);
             byte [] outputBuffer = serializeObject(authenticationRequest);
             
             // Creates socket and sends message to the KDC
-            socket = new DatagramSocket();
-            InetAddress host = InetAddress.getByName(kdcIpAddress);
-            DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, AUTHENTICATION_SERVER_PORT_NUMBER);
+            DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, AS_PORT_NUMBER);
             socket.send(request);
             
-            // Gets response from the AS
+            // Waits response from the AS (Blocking code!)
             byte[] inputBuffer = new byte[PACKET_SIZE];
             DatagramPacket response = new DatagramPacket(inputBuffer, inputBuffer.length);
             socket.receive(response);
@@ -77,11 +75,18 @@ public class Client extends Thread {
             String objectName = object.getClass().getName();
             
             // Handles AS response
-            if (objectName.equals("messages.AuthenticationResponse")) {                
+            if (objectName.equals("messages.AuthenticationResponse")) {
                 AuthenticationResponse authenticationResponse = (AuthenticationResponse) object;
-
-                    System.out.println("Session key: " + (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey)));
-                    System.out.println("Random: " + (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey)));
+                SecretKey tgsSessionKey = (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey));
+                int clientRandomNumber = (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey));
+                SealedObject encryptedClientName = encode(serializeObject(clientName), tgsSessionKey);
+                this.calendar = Calendar.getInstance();
+                SealedObject encryptedTimestamp = encode(serializeObject(this.calendar.getTime()), tgsSessionKey);
+                SealedObject encryptedTgt = authenticationResponse.getTgt();
+                String serviceName = findServiceName(clientRandomNumber);
+                
+                TicketRequest ticketRequest = new TicketRequest(encryptedClientName, encryptedTimestamp, encryptedTgt, serviceName);
+                this.requestTicket(ticketRequest);
             }
 
         } catch (SocketException e) {
@@ -96,18 +101,54 @@ public class Client extends Thread {
         }
     }
     
-    public void createClient(String username, String kdcIpAddress) throws NoSuchAlgorithmException {
+    public void requestTicket(TicketRequest ticketRequest) {
+        // UDP client code
+        try {
+            // Transforms ticketRequest into byte array
+            byte [] outputBuffer = serializeObject(ticketRequest);
+            
+            // Creates socket and sends message to the KDC
+            DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, TGS_PORT_NUMBER);
+            socket.send(request);
+
+            // Waits response from the TGS (Blocking code!)
+            byte[] inputBuffer = new byte[PACKET_SIZE];
+            DatagramPacket response = new DatagramPacket(inputBuffer, inputBuffer.length);
+            socket.receive(response);
+            
+            // Deserialize and gather information about received packet
+            Object object = deserializeObject(response.getData());
+            String objectName = object.getClass().getName();
+            
+            // Handles TGS response
+            if (objectName.equals("messages.AuthenticationResponse")) {
+                
+            }
+
+        } catch (SocketException e) {
+            System.out.println("ERROR | Socket: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("ERROR | IO: " + e.getMessage());
+        } catch (Exception ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            if(socket != null)
+                socket.close();
+        }
+    }
+    
+    public void createClient(String clientName, String kdcIpAddress) throws NoSuchAlgorithmException {
         try {
             // Creating user and clientKey pair
-            this.username = username;
+            this.clientName = clientName;
             this.kdcIpAddress = kdcIpAddress;
+            this.host = InetAddress.getByName(this.kdcIpAddress);
             this.clientKey = KeyGenerator.getInstance("DES").generateKey();
-            NameKeyPair newClient = new NameKeyPair(username, clientKey);
+            NameKeyPair newClient = new NameKeyPair(this.clientName, clientKey);
             
             // Starting socket and sending request to create user
             socket = new DatagramSocket();
             byte[] outputBuffer = serializeObject(newClient);
-            InetAddress host = InetAddress.getByName(kdcIpAddress);
             DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, NEW_CLIENT_SERVER_PORT_NUMBER);
             socket.send(request);
             
@@ -118,21 +159,21 @@ public class Client extends Thread {
             DatagramPacket response = new DatagramPacket(inputBuffer, inputBuffer.length);
             socket.receive(response);
             
-            // Determines whether the username was already taken on the KDC 
+            // Determines whether the clientName was already taken on the KDC 
             uniqueUsername = (boolean) deserializeObject(inputBuffer);
             if (uniqueUsername) {
                 // Show confirmation dialog
                 JOptionPane.showMessageDialog(null, "Your username and clientKey were sucessfully stored at the KDC.");
                 
                 // Starts AS server and the Kerberos protocol itself
-                this.start();
+                this.authenticate();
                 ClientFrame clientFrame = new ClientFrame();
                 
             } else {
                 // Show error dialog
                 JOptionPane.showMessageDialog(null, "This username is taken.");
                 
-                // Gives new chance for user to choose an username
+                // Gives new chance for user to choose an clientName
                 CreateClientFrame createClientFrame = new CreateClientFrame(this);
                 createClientFrame.setVisible(true);
             }
@@ -151,8 +192,16 @@ public class Client extends Thread {
         return uniqueUsername;
     }
     
+    public String findServiceName(int randomNumber) {
+        for (AuthenticationRequest request: requests) {
+            if (request.getAsRandomNumber() == randomNumber)
+                return request.getServiceName();
+        }
+        return null;
+    }
+    
     public static void main(String[] args) throws IOException {
-        
+        // Creates client and calls for the form to create a new client
         Client client = new Client();
         CreateClientFrame createClientFrame = new CreateClientFrame(client);
         createClientFrame.setVisible(true);

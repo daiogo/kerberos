@@ -116,11 +116,11 @@ public class CreateClientFrame extends javax.swing.JFrame {
 
     private void btnCreateClientActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCreateClientActionPerformed
         try {
+            dispose();
             myClient.createClient(txtUsername.getText(), txtKdcIpAddress.getText());
         } catch (NoSuchAlgorithmException ex) {
             Logger.getLogger(CreateClientFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
-        dispose();
     }//GEN-LAST:event_btnCreateClientActionPerformed
 
     /**

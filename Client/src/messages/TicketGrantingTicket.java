@@ -28,4 +28,17 @@ public class TicketGrantingTicket implements Serializable {
         this.expirationDate = calendar.getTime();
         this.tgsSessionKey = tgsSessionKey;
     }
+
+    public String getClientName() {
+        return clientName;
+    }
+
+    public Date getExpirationDate() {
+        return expirationDate;
+    }
+
+    public SecretKey getTgsSessionKey() {
+        return tgsSessionKey;
+    }
+    
 }

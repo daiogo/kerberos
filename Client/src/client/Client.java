@@ -35,6 +35,7 @@ public class Client extends Thread {
     private static final int NEW_CLIENT_SERVER_PORT_NUMBER = 8000;
     private static final int AS_PORT_NUMBER = 8002;
     private static final int TGS_PORT_NUMBER = 8003;
+    private static final int SERVICE_PORT_NUMBER = 8004;
     private DatagramSocket socket;
     private String clientName;
     private String kdcIpAddress;
@@ -43,11 +44,13 @@ public class Client extends Thread {
     private boolean uniqueUsername;
     private Calendar calendar;
     private ArrayList<AuthenticationRequest> requests;
+    private ArrayList<SecretKey> tgsSessionKeys;
     
     public Client() {
         this.socket = null;
         this.calendar = Calendar.getInstance();
         this.requests = new ArrayList();
+        this.tgsSessionKeys = new ArrayList();
     }
     
     public void authenticate() {
@@ -87,6 +90,8 @@ public class Client extends Thread {
                 
                 TicketRequest ticketRequest = new TicketRequest(encryptedClientName, encryptedTimestamp, encryptedTgt, serviceName);
                 this.requestTicket(ticketRequest);
+                
+                this.tgsSessionKeys.add(tgsSessionKey);
             }
 
         } catch (SocketException e) {
@@ -121,8 +126,82 @@ public class Client extends Thread {
             String objectName = object.getClass().getName();
             
             // Handles TGS response
-            if (objectName.equals("messages.AuthenticationResponse")) {
+            if (objectName.equals("messages.TicketResponse")) { //Check for expiration date!
+                TicketResponse ticketResponse = (TicketResponse) object;
                 
+                for (SecretKey tgsSessionKey : tgsSessionKeys) {
+                    Object keyObject = deserializeObject(decode(ticketResponse.getServiceSessionKey(), tgsSessionKey));
+                    String keyObjectName = keyObject.getClass().getName();
+                    System.out.println("KEY IS OG TYPE: " + keyObjectName);
+                    if (keyObjectName.equals("SecretKey")) {
+                        SecretKey serviceSessionKey = (SecretKey) deserializeObject(decode(ticketResponse.getServiceSessionKey(), tgsSessionKey));
+                        int tgsRandomNumber = (int) deserializeObject(decode(ticketResponse.getTgsRandomNumber(), tgsSessionKey));
+                        SealedObject serviceTicket = ticketResponse.getServiceTicket();
+                        
+                        this.calendar = Calendar.getInstance();
+                        ServiceRequest serviceRequest = new ServiceRequest(
+                                encode(serializeObject(clientName), serviceSessionKey),
+                                encode(serializeObject(calendar.getTime()), serviceSessionKey),
+                                serviceTicket,
+                                "GET");
+                        this.requestService(serviceRequest);
+                    }
+                }
+            }
+
+        } catch (SocketException e) {
+            System.out.println("ERROR | Socket: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("ERROR | IO: " + e.getMessage());
+        } catch (Exception ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            if(socket != null)
+                socket.close();
+        }
+    }
+    
+    public void requestService(ServiceRequest serviceRequest) {
+        // UDP client code
+        try {
+            // Transforms serviceRequest into byte array
+            byte [] outputBuffer = serializeObject(serviceRequest);
+            
+            // Creates socket and sends message to the service
+            DatagramPacket request = new DatagramPacket(outputBuffer, outputBuffer.length, host, SERVICE_PORT_NUMBER);
+            socket.send(request);
+
+            // Waits response from the service (Blocking code!)
+            byte[] inputBuffer = new byte[PACKET_SIZE];
+            DatagramPacket response = new DatagramPacket(inputBuffer, inputBuffer.length);
+            socket.receive(response);
+            
+            // Deserialize and gather information about received packet
+            Object object = deserializeObject(response.getData());
+            String objectName = object.getClass().getName();
+            
+            // Handles service response
+            if (objectName.equals("messages.ServiceResponse")) { //Check for expiration date!
+                ServiceResponse serviceResponse = (ServiceResponse) object;
+// Use for a single service! no more arrays for keys! ou requestTicket() too
+//                for (SecretKey tgsSessionKey : tgsSessionKeys) {
+//                    Object responseObject = deserializeObject(decode(serviceResponse.getServiceSessionKey(), tgsSessionKey));
+//                    String keyObjectName = keyObject.getClass().getName();
+//
+//                    if (keyObjectName.equals("SecretKey")) {
+//                        SecretKey serviceSessionKey = (SecretKey) deserializeObject(decode(serviceResponse.getServiceSessionKey(), tgsSessionKey));
+//                        int tgsRandomNumber = (int) deserializeObject(decode(serviceResponse.getTgsRandomNumber(), tgsSessionKey));
+//                        SealedObject serviceTicket = serviceResponse.getServiceTicket();
+//                        
+//                        this.calendar = Calendar.getInstance();
+//                        ServiceRequest serviceRequest = new ServiceRequest(
+//                                encode(serializeObject(clientName), serviceSessionKey),
+//                                encode(serializeObject(calendar.getTime()), serviceSessionKey),
+//                                serviceTicket,
+//                                "GET");
+//                        this.requestService(serviceRequest);
+//                    }
+//                }
             }
 
         } catch (SocketException e) {

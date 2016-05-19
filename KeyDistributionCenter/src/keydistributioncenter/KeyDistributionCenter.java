@@ -9,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import messages.NameKeyPair;
 import java.util.ArrayList;
 import javax.crypto.SecretKey;
+import messages.TicketGrantingTicket;
 
 /**
  *
@@ -64,7 +65,24 @@ public class KeyDistributionCenter {
         }
         return null;
     }
+    
+    public SecretKey findServiceKey(String serviceName) {
+        for (NameKeyPair pair : serviceKeyPairs) {
+            if (pair.getName().equals(serviceName))
+                return pair.getKey();
+        }
+        return null;
+    }
 
+    public String findClientName(TicketGrantingTicket tgt, SecretKey tgsSessionKey) {
+        for (Request request : requests) {
+            if (request.getTgt().equals(tgt) && request.getTgsSessionKey().equals(tgsSessionKey)) {
+                return request.getAuthenticationRequest().getClientName();
+            }
+        }
+        return null;
+    }
+    
     public static void main(String[] args) throws Exception {
         
         KeyDistributionCenter kdc = new KeyDistributionCenter();

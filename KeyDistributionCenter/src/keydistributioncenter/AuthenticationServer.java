@@ -46,6 +46,7 @@ public class AuthenticationServer extends Thread {
     
     @Override
     public void run() {
+        // UDP server code
         try {
             socket = new DatagramSocket(AS_PORT_NUMBER);
             
@@ -80,8 +81,8 @@ public class AuthenticationServer extends Thread {
                     
                     outputBuffer = serializeObject(authenticationResponse);
                     
-                    DatagramPacket reply = new DatagramPacket(outputBuffer, outputBuffer.length, request.getAddress(), request.getPort());
-                    socket.send(reply);
+                    DatagramPacket response = new DatagramPacket(outputBuffer, outputBuffer.length, request.getAddress(), request.getPort());
+                    socket.send(response);
                     
                     // Stores data into requests database for future reference by the TGS
                     myKdc.getRequests().add(new Request(authenticationRequest, tgt, tgsSessionKey));

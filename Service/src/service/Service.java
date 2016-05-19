@@ -34,7 +34,7 @@ import messages.ServiceTicket;
  *
  * @author Diogo
  */
-public class Service {
+public class Service extends Thread {
 
     private static final int PACKET_SIZE = 65535;
     private static final int NEW_SERVICE_SERVER_PORT_NUMBER = 8001;
@@ -54,7 +54,8 @@ public class Service {
         this.calendar = Calendar.getInstance();
     }
     
-    public void respond() throws Exception {
+    @Override
+    public void run() {
         // UDP server code
         try {
             socket = new DatagramSocket(SERVICE_PORT_NUMBER);
@@ -70,6 +71,7 @@ public class Service {
                 String objectName = object.getClass().getName();
                 
                 if (objectName.equals("messages.ServiceRequest")) {
+                    // Unpacks data from message
                     ServiceRequest serviceRequest = (ServiceRequest) object;
                     ServiceTicket serviceTicket = (ServiceTicket) deserializeObject(decode(serviceRequest.getServiceTicket(), serviceKey));
                     this.serviceSessionKey = serviceTicket.getServiceSessionKey();
@@ -77,18 +79,15 @@ public class Service {
                     String requester = (String) deserializeObject(decode(serviceRequest.getClientName(), serviceSessionKey));
                     String clientName = serviceTicket.getClientName();
                     
-                    
-                    System.out.println("CLIENT NAME FROM TICKET: " + serviceTicket.getClientName());
-                    System.out.println("CLIENT NAME FROM REQUEST: " + requester);
-                    
                     this.currentDate = calendar.getTime();
                     Date ticketExpirationDate = serviceTicket.getExpirationDate();
+                    
                     if (requester.equals(clientName) && currentDate.before(ticketExpirationDate)) {
-                        switch (resourceRequest) {
-                            case "GET":
+                        switch (resourceRequest.toLowerCase()) {
+                            case "get":
                                 this.reply = "You asked for GET!";
                                 break;
-                            case "POST":
+                            case "post":
                                 this.reply = "You asked for POST!";
                                 break;
                             default:
@@ -117,6 +116,8 @@ public class Service {
             System.out.println("ERROR | Socket: " + e.getMessage());
         } catch (IOException e) {
             System.out.println("ERROR | IO: " + e.getMessage());
+        } catch (Exception ex) {
+            Logger.getLogger(Service.class.getName()).log(Level.SEVERE, null, ex);
         } finally {
             if(socket != null)
                 socket.close();
@@ -128,7 +129,7 @@ public class Service {
             // Creating service and serviceKey pair
             this.serviceName = serviceName;
             this.serviceKey = KeyGenerator.getInstance("DES").generateKey();
-            NameKeyPair newService = new NameKeyPair(serviceName, serviceKey);
+            NameKeyPair newService = new NameKeyPair(this.serviceName, this.serviceKey);
             
             // Starting socket and sending request to create service
             socket = new DatagramSocket();
@@ -147,13 +148,16 @@ public class Service {
             // Determines whether the serviceName was already taken on the KDC 
             boolean uniqueServiceName = (boolean) deserializeObject(inputBuffer);
             if (uniqueServiceName) {
+                // Show confirmation message
                 JOptionPane.showMessageDialog(null, "Your service name and key were sucessfully stored at the KDC.");
                 
-                this.respond();
+                // Starts server
+                this.start();
             } else {
                 JOptionPane.showMessageDialog(null, "This service name is taken.");
                 CreateServiceFrame createServiceFrame = new CreateServiceFrame(this);
                 createServiceFrame.setVisible(true);
+                createServiceFrame.setLocationRelativeTo(null);
             }
             
         } catch (SocketException e) {
@@ -173,6 +177,7 @@ public class Service {
         Service service = new Service();
         CreateServiceFrame createServiceFrame = new CreateServiceFrame(service);
         createServiceFrame.setVisible(true);
+        createServiceFrame.setLocationRelativeTo(null);
     }
 
 }

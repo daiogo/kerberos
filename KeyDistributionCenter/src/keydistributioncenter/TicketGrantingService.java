@@ -74,7 +74,7 @@ public class TicketGrantingService extends Thread {
 
                         ServiceTicket serviceTicket = new ServiceTicket(clientName, expirationDate, serviceSessionKey);
                         TicketResponse ticketResponse = new TicketResponse(
-                                encode(serializeObject(serviceSessionKey), tgsSessionKey), 
+                                encode(serializeObject(serviceSessionKey), tgsSessionKey),
                                 encode(serializeObject(tgsRandomNumber), tgsSessionKey),
                                 encode(serializeObject(serviceTicket), serviceKey));
 

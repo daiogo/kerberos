@@ -5,7 +5,6 @@
  */
 package client;
 
-import gui.ClientFrame;
 import static messages.Serializer.*;
 import messages.*;
 import gui.CreateClientFrame;
@@ -82,6 +81,8 @@ public class Client extends Thread {
             // Handles AS response
             if (objectName.equals("messages.AuthenticationResponse")) {
                 AuthenticationResponse authenticationResponse = (AuthenticationResponse) object;
+                
+                // Gathers data from the AS response
                 this.tgsSessionKey = (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey));
                 this.asRandomNumber = (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey));
                 SealedObject encryptedClientName = encode(serializeObject(clientName), tgsSessionKey);
@@ -90,6 +91,7 @@ public class Client extends Thread {
                 SealedObject encryptedTgt = authenticationResponse.getTgt();
                 String serviceName = findServiceName(this.asRandomNumber);
                 
+                // Creates a service ticket request based on the data gathered
                 TicketRequest ticketRequest = new TicketRequest(encryptedClientName, encryptedTimestamp, encryptedTgt, serviceName);
 
                 // Calls requestTicket() method to initiate connection with TGS
@@ -129,17 +131,22 @@ public class Client extends Thread {
             
             // Handles TGS response
             if (objectName.equals("messages.TicketResponse")) { //Check for expiration date!
+                // Gathers data to build service request
                 TicketResponse ticketResponse = (TicketResponse) object;
                 this.serviceSessionKey = (SecretKey) deserializeObject(decode(ticketResponse.getServiceSessionKey(), this.tgsSessionKey));
                 this.tgsRandomNumber = (int) deserializeObject(decode(ticketResponse.getTgsRandomNumber(), this.tgsSessionKey));
                 SealedObject serviceTicket = ticketResponse.getServiceTicket();
 
+                // Gets the service the client wants to connect with
+                String requestMethod = (String) JOptionPane.showInputDialog("Enter the desired request method (GET or POST)");
+                
+                // Builds a request for the desired service
                 this.calendar = Calendar.getInstance();
                 ServiceRequest serviceRequest = new ServiceRequest(
                         encode(serializeObject(clientName), serviceSessionKey),
                         encode(serializeObject(calendar.getTime()), serviceSessionKey),
                         serviceTicket,
-                        "GET");
+                        requestMethod);
                 
                 // Calls requestService() method to initiate connection with service
                 this.requestService(serviceRequest);
@@ -183,9 +190,11 @@ public class Client extends Thread {
             if (objectName.equals("messages.ServiceResponse")) { //Check for expiration date!
                 ServiceResponse serviceResponse = (ServiceResponse) object;
                 String reply = (String) deserializeObject(decode(serviceResponse.getReply(), this.serviceSessionKey));
-                System.out.println("-----------------------------");
-                System.out.println("Server responded: " + reply);
+
+                JOptionPane.showMessageDialog(null, "Server response: " + reply);
             }
+            
+            this.authenticate();
 
         } catch (SocketException e) {
             System.out.println("ERROR | Socket: " + e.getMessage());
@@ -238,6 +247,7 @@ public class Client extends Thread {
                 // Gives new chance for user to choose an clientName
                 CreateClientFrame createClientFrame = new CreateClientFrame(this);
                 createClientFrame.setVisible(true);
+                createClientFrame.setLocationRelativeTo(null);
             }
             
         } catch (SocketException e) {
@@ -267,5 +277,6 @@ public class Client extends Thread {
         Client client = new Client();
         CreateClientFrame createClientFrame = new CreateClientFrame(client);
         createClientFrame.setVisible(true);
+        createClientFrame.setLocationRelativeTo(null);
     }
 }

@@ -14,12 +14,12 @@ import javax.crypto.SealedObject;
  */
 public class AuthenticationResponse implements Serializable {
     private SealedObject tgsSessionKey;
-    private SealedObject randomNumber;
+    private SealedObject asRandomNumber;
     private SealedObject tgt;
 
-    public AuthenticationResponse(SealedObject tgsSessionKey, SealedObject randomNumber, SealedObject tgt) {
+    public AuthenticationResponse(SealedObject tgsSessionKey, SealedObject asRandomNumber, SealedObject tgt) {
         this.tgsSessionKey = tgsSessionKey;
-        this.randomNumber = randomNumber;
+        this.asRandomNumber = asRandomNumber;
         this.tgt = tgt;
     }
 
@@ -28,7 +28,7 @@ public class AuthenticationResponse implements Serializable {
     }
 
     public SealedObject getRandomNumber() {
-        return randomNumber;
+        return asRandomNumber;
     }
 
     public SealedObject getTgt() {

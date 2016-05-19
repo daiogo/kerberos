@@ -17,30 +17,110 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.swing.JOptionPane;
+import static service.DesCodec.*;
 import messages.NameKeyPair;
+import messages.ServiceRequest;
+import messages.ServiceResponse;
+import messages.ServiceTicket;
 
 /**
  *
  * @author Diogo
  */
-public class Service extends Thread {
+public class Service {
 
     private static final int PACKET_SIZE = 65535;
     private static final int NEW_SERVICE_SERVER_PORT_NUMBER = 8001;
+    private static final int SERVICE_PORT_NUMBER = 8004;
     private DatagramSocket socket;
     private String serviceName;
     private SecretKey serviceKey;
+    private SecretKey serviceSessionKey;
+    private Calendar calendar;
+    private Date currentDate;
+    private String reply;
+    private ServiceResponse serviceResponse;
+    
     
     public Service() {
         this.socket = null;
+        this.calendar = Calendar.getInstance();
     }
     
-    @Override
-    public void run() {
+    public void respond() throws Exception {
         // UDP server code
+        try {
+            socket = new DatagramSocket(SERVICE_PORT_NUMBER);
+            
+            byte[] inputBuffer = new byte[PACKET_SIZE];
+            byte[] outputBuffer = new byte[PACKET_SIZE];
+            
+            while (true) {
+                DatagramPacket request = new DatagramPacket(inputBuffer, inputBuffer.length);
+                socket.receive(request);
+                
+                Object object = deserializeObject(inputBuffer);
+                String objectName = object.getClass().getName();
+                
+                if (objectName.equals("messages.ServiceRequest")) {
+                    ServiceRequest serviceRequest = (ServiceRequest) object;
+                    ServiceTicket serviceTicket = (ServiceTicket) deserializeObject(decode(serviceRequest.getServiceTicket(), serviceKey));
+                    this.serviceSessionKey = serviceTicket.getServiceSessionKey();
+                    String resourceRequest = serviceRequest.getResourceRequest();
+                    String requester = (String) deserializeObject(decode(serviceRequest.getClientName(), serviceSessionKey));
+                    String clientName = serviceTicket.getClientName();
+                    
+                    
+                    System.out.println("CLIENT NAME FROM TICKET: " + serviceTicket.getClientName());
+                    System.out.println("CLIENT NAME FROM REQUEST: " + requester);
+                    
+                    this.currentDate = calendar.getTime();
+                    Date ticketExpirationDate = serviceTicket.getExpirationDate();
+                    if (requester.equals(clientName) && currentDate.before(ticketExpirationDate)) {
+                        switch (resourceRequest) {
+                            case "GET":
+                                this.reply = "You asked for GET!";
+                                break;
+                            case "POST":
+                                this.reply = "You asked for POST!";
+                                break;
+                            default:
+                                this.reply = "ERROR | Unknown request!";
+                        }
+
+                        this.serviceResponse = new ServiceResponse(
+                                encode(serializeObject(reply), serviceSessionKey));
+
+                        outputBuffer = serializeObject(serviceResponse);
+                    } else {
+                        this.reply = "ERROR | Wrong client or ticket expired.";
+                        this.serviceResponse = new ServiceResponse(
+                                encode(serializeObject(reply), serviceSessionKey));
+
+                        outputBuffer = serializeObject(serviceResponse);
+                    }
+                    
+                    DatagramPacket response = new DatagramPacket(outputBuffer, outputBuffer.length, request.getAddress(), request.getPort());
+                    socket.send(response);
+                } else {
+                    System.out.println("ERROR | Unknown message received");
+                }
+            }
+        } catch (SocketException e) {
+            System.out.println("ERROR | Socket: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("ERROR | IO: " + e.getMessage());
+        } finally {
+            if(socket != null)
+                socket.close();
+        }
     }
     
     public void createService(String serviceName, String kdcIpAddress) throws NoSuchAlgorithmException {
@@ -68,6 +148,8 @@ public class Service extends Thread {
             boolean uniqueServiceName = (boolean) deserializeObject(inputBuffer);
             if (uniqueServiceName) {
                 JOptionPane.showMessageDialog(null, "Your service name and key were sucessfully stored at the KDC.");
+                
+                this.respond();
             } else {
                 JOptionPane.showMessageDialog(null, "This service name is taken.");
                 CreateServiceFrame createServiceFrame = new CreateServiceFrame(this);
@@ -78,6 +160,8 @@ public class Service extends Thread {
             System.out.println("ERROR | Socket: " + e.getMessage());
         } catch (IOException e) {
             System.out.println("ERROR | IO: " + e.getMessage());
+        } catch (Exception ex) {
+            Logger.getLogger(Service.class.getName()).log(Level.SEVERE, null, ex);
         } finally {
             if(socket != null)
                 socket.close();

@@ -10,10 +10,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.Calendar;
-import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.KeyGenerator;
@@ -32,14 +29,11 @@ public class AuthenticationServer extends Thread {
     private KeyDistributionCenter myKdc;
     private TicketGrantingService myTgs;
     private DatagramSocket socket;
-    private DateFormat dateFormat;
     private Calendar calendar;
     
     public AuthenticationServer(TicketGrantingService tgs, KeyDistributionCenter kdc) {
         this.socket = null;
-        this.dateFormat = new SimpleDateFormat("dd/MM/yy HH:mm:ss");
         this.calendar = Calendar.getInstance();
-        System.out.println("Created AS at " + dateFormat.format(calendar.getTime()));
         this.myTgs = tgs;
         this.myKdc = kdc;
     }
@@ -73,11 +67,8 @@ public class AuthenticationServer extends Thread {
                     
                     AuthenticationResponse authenticationResponse = new AuthenticationResponse(
                             encode(serializeObject(tgsSessionKey), clientKey),
-                            encode(serializeObject(new Random().nextInt()), clientKey),
+                            encode(serializeObject(authenticationRequest.getAsRandomNumber()), clientKey),
                             encode(serializeObject(tgt), myTgs.getTgsKey()));
-
-                    System.out.println("Session key: " + (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey)));
-                    System.out.println("Random: " + (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey)));
                     
                     outputBuffer = serializeObject(authenticationResponse);
                     

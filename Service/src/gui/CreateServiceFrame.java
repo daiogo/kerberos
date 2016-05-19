@@ -116,6 +116,7 @@ public class CreateServiceFrame extends javax.swing.JFrame {
 
     private void btnCreateServiceActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCreateServiceActionPerformed
         try {
+            dispose();
             myService.createService(txtServiceName.getText(), txtKdcIpAddress.getText());
         } catch (NoSuchAlgorithmException ex) {
             Logger.getLogger(CreateServiceFrame.class.getName()).log(Level.SEVERE, null, ex);

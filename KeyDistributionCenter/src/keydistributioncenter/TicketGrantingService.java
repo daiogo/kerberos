@@ -28,12 +28,12 @@ public class TicketGrantingService extends Thread {
     private static final int PACKET_SIZE = 65535;
     private static final int TGS_PORT_NUMBER = 8003;
     private KeyDistributionCenter myKdc;
-    private AuthenticationServer myAs;
     private DatagramSocket socket;
     private Calendar calendar;
     private SecretKey tgsKey;
     
-    public TicketGrantingService() throws NoSuchAlgorithmException {
+    public TicketGrantingService(KeyDistributionCenter kdc) throws NoSuchAlgorithmException {
+        this.myKdc = kdc;
         this.tgsKey = KeyGenerator.getInstance("DES").generateKey();
         this.calendar = Calendar.getInstance();
     }
@@ -59,7 +59,7 @@ public class TicketGrantingService extends Thread {
                 String objectName = object.getClass().getName();
 
                 // Identify TicketRequest
-                if (objectName.equals("messages.TicketRequest")) { //Verify expiration too!                
+                if (objectName.equals("messages.TicketRequest")) { //Verify expiration too!        
                     TicketRequest ticketRequest = (TicketRequest) object;
                     
                     // Gathers data to build ticket response
@@ -67,17 +67,23 @@ public class TicketGrantingService extends Thread {
                     SecretKey tgsSessionKey = (SecretKey) tgt.getTgsSessionKey();
                     SecretKey serviceSessionKey = KeyGenerator.getInstance("DES").generateKey();
                     int tgsRandomNumber = ticketRequest.getTgsRandomNumber();
-                    SecretKey serviceKey = myKdc.findClientKey(ticketRequest.getServiceName());
-                    Date expirationDate = tgt.getExpirationDate();
-                    String clientName = myKdc.findClientName(tgt, tgsSessionKey);
+                    SecretKey serviceKey = myKdc.findServiceKey(ticketRequest.getServiceName());
+                    if (serviceKey != null) {
+                        Date expirationDate = tgt.getExpirationDate();
+                        String clientName = tgt.getClientName();
+
+                        ServiceTicket serviceTicket = new ServiceTicket(clientName, expirationDate, serviceSessionKey);
+                        TicketResponse ticketResponse = new TicketResponse(
+                                encode(serializeObject(serviceSessionKey), tgsSessionKey), 
+                                encode(serializeObject(tgsRandomNumber), tgsSessionKey),
+                                encode(serializeObject(serviceTicket), serviceKey));
+
+                        outputBuffer = serializeObject(ticketResponse);
+                    } else {
+                        String errorMessage = "ERROR | Could not find desired service!";
+                        outputBuffer = serializeObject(errorMessage);
+                    }
                     
-                    ServiceTicket serviceTicket = new ServiceTicket(clientName, expirationDate, serviceSessionKey);
-                    TicketResponse ticketResponse = new TicketResponse(
-                            encode(serializeObject(serviceSessionKey), tgsSessionKey), 
-                            encode(serializeObject(tgsRandomNumber), tgsSessionKey),
-                            encode(serializeObject(serviceTicket), serviceKey));
-                    
-                    outputBuffer = serializeObject(ticketResponse);
                     
                     DatagramPacket response = new DatagramPacket(outputBuffer, outputBuffer.length, request.getAddress(), request.getPort());
                     socket.send(response);

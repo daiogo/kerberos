@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package keydistributioncenter;
+package client;
 
 import javax.crypto.Cipher;
 import javax.crypto.SealedObject;
@@ -11,7 +11,7 @@ import javax.crypto.SecretKey;
 
 /**
  *
- * @author http://www.java2s.com/Code/Java/Security/EncryptingaStringwithDES.htm
+ * Modified from: https://kodejava.org/how-do-i-encrypt-an-object-with-des/
  */
 public class DesCodec {
     

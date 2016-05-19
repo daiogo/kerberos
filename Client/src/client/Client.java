@@ -23,7 +23,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
 import javax.swing.JOptionPane;
-import static keydistributioncenter.DesCodec.*;
+import static client.DesCodec.*;
 
 /**
  *
@@ -41,16 +41,18 @@ public class Client extends Thread {
     private String kdcIpAddress;
     private InetAddress host;
     private SecretKey clientKey;
-    private boolean uniqueUsername;
+    private boolean uniqueClientName;
     private Calendar calendar;
     private ArrayList<AuthenticationRequest> requests;
-    private ArrayList<SecretKey> tgsSessionKeys;
+    private SecretKey tgsSessionKey;
+    private SecretKey serviceSessionKey;
+    private int asRandomNumber;
+    private int tgsRandomNumber;
     
     public Client() {
         this.socket = null;
         this.calendar = Calendar.getInstance();
         this.requests = new ArrayList();
-        this.tgsSessionKeys = new ArrayList();
     }
     
     public void authenticate() {
@@ -80,18 +82,18 @@ public class Client extends Thread {
             // Handles AS response
             if (objectName.equals("messages.AuthenticationResponse")) {
                 AuthenticationResponse authenticationResponse = (AuthenticationResponse) object;
-                SecretKey tgsSessionKey = (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey));
-                int clientRandomNumber = (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey));
+                this.tgsSessionKey = (SecretKey) deserializeObject(decode(authenticationResponse.getTgsSessionKey(), clientKey));
+                this.asRandomNumber = (int) deserializeObject(decode(authenticationResponse.getRandomNumber(), clientKey));
                 SealedObject encryptedClientName = encode(serializeObject(clientName), tgsSessionKey);
                 this.calendar = Calendar.getInstance();
                 SealedObject encryptedTimestamp = encode(serializeObject(this.calendar.getTime()), tgsSessionKey);
                 SealedObject encryptedTgt = authenticationResponse.getTgt();
-                String serviceName = findServiceName(clientRandomNumber);
+                String serviceName = findServiceName(this.asRandomNumber);
                 
                 TicketRequest ticketRequest = new TicketRequest(encryptedClientName, encryptedTimestamp, encryptedTgt, serviceName);
+
+                // Calls requestTicket() method to initiate connection with TGS
                 this.requestTicket(ticketRequest);
-                
-                this.tgsSessionKeys.add(tgsSessionKey);
             }
 
         } catch (SocketException e) {
@@ -128,25 +130,22 @@ public class Client extends Thread {
             // Handles TGS response
             if (objectName.equals("messages.TicketResponse")) { //Check for expiration date!
                 TicketResponse ticketResponse = (TicketResponse) object;
+                this.serviceSessionKey = (SecretKey) deserializeObject(decode(ticketResponse.getServiceSessionKey(), this.tgsSessionKey));
+                this.tgsRandomNumber = (int) deserializeObject(decode(ticketResponse.getTgsRandomNumber(), this.tgsSessionKey));
+                SealedObject serviceTicket = ticketResponse.getServiceTicket();
+
+                this.calendar = Calendar.getInstance();
+                ServiceRequest serviceRequest = new ServiceRequest(
+                        encode(serializeObject(clientName), serviceSessionKey),
+                        encode(serializeObject(calendar.getTime()), serviceSessionKey),
+                        serviceTicket,
+                        "GET");
                 
-                for (SecretKey tgsSessionKey : tgsSessionKeys) {
-                    Object keyObject = deserializeObject(decode(ticketResponse.getServiceSessionKey(), tgsSessionKey));
-                    String keyObjectName = keyObject.getClass().getName();
-                    System.out.println("KEY IS OG TYPE: " + keyObjectName);
-                    if (keyObjectName.equals("SecretKey")) {
-                        SecretKey serviceSessionKey = (SecretKey) deserializeObject(decode(ticketResponse.getServiceSessionKey(), tgsSessionKey));
-                        int tgsRandomNumber = (int) deserializeObject(decode(ticketResponse.getTgsRandomNumber(), tgsSessionKey));
-                        SealedObject serviceTicket = ticketResponse.getServiceTicket();
-                        
-                        this.calendar = Calendar.getInstance();
-                        ServiceRequest serviceRequest = new ServiceRequest(
-                                encode(serializeObject(clientName), serviceSessionKey),
-                                encode(serializeObject(calendar.getTime()), serviceSessionKey),
-                                serviceTicket,
-                                "GET");
-                        this.requestService(serviceRequest);
-                    }
-                }
+                // Calls requestService() method to initiate connection with service
+                this.requestService(serviceRequest);
+            } else {
+                String errorMessage = (String) object;
+                System.out.println(errorMessage);
             }
 
         } catch (SocketException e) {
@@ -183,25 +182,9 @@ public class Client extends Thread {
             // Handles service response
             if (objectName.equals("messages.ServiceResponse")) { //Check for expiration date!
                 ServiceResponse serviceResponse = (ServiceResponse) object;
-// Use for a single service! no more arrays for keys! ou requestTicket() too
-//                for (SecretKey tgsSessionKey : tgsSessionKeys) {
-//                    Object responseObject = deserializeObject(decode(serviceResponse.getServiceSessionKey(), tgsSessionKey));
-//                    String keyObjectName = keyObject.getClass().getName();
-//
-//                    if (keyObjectName.equals("SecretKey")) {
-//                        SecretKey serviceSessionKey = (SecretKey) deserializeObject(decode(serviceResponse.getServiceSessionKey(), tgsSessionKey));
-//                        int tgsRandomNumber = (int) deserializeObject(decode(serviceResponse.getTgsRandomNumber(), tgsSessionKey));
-//                        SealedObject serviceTicket = serviceResponse.getServiceTicket();
-//                        
-//                        this.calendar = Calendar.getInstance();
-//                        ServiceRequest serviceRequest = new ServiceRequest(
-//                                encode(serializeObject(clientName), serviceSessionKey),
-//                                encode(serializeObject(calendar.getTime()), serviceSessionKey),
-//                                serviceTicket,
-//                                "GET");
-//                        this.requestService(serviceRequest);
-//                    }
-//                }
+                String reply = (String) deserializeObject(decode(serviceResponse.getReply(), this.serviceSessionKey));
+                System.out.println("-----------------------------");
+                System.out.println("Server responded: " + reply);
             }
 
         } catch (SocketException e) {
@@ -239,14 +222,14 @@ public class Client extends Thread {
             socket.receive(response);
             
             // Determines whether the clientName was already taken on the KDC 
-            uniqueUsername = (boolean) deserializeObject(inputBuffer);
-            if (uniqueUsername) {
+            uniqueClientName = (boolean) deserializeObject(inputBuffer);
+            if (uniqueClientName) {
                 // Show confirmation dialog
                 JOptionPane.showMessageDialog(null, "Your username and clientKey were sucessfully stored at the KDC.");
                 
-                // Starts AS server and the Kerberos protocol itself
+                // Starts authentication and the Kerberos protocol itself
                 this.authenticate();
-                ClientFrame clientFrame = new ClientFrame();
+                //ClientFrame clientFrame = new ClientFrame();
                 
             } else {
                 // Show error dialog
@@ -268,7 +251,7 @@ public class Client extends Thread {
     }
 
     public boolean isUniqueUsername() {
-        return uniqueUsername;
+        return uniqueClientName;
     }
     
     public String findServiceName(int randomNumber) {

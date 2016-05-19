@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package keydistributioncenter;
+package service;
 
 import javax.crypto.Cipher;
 import javax.crypto.SealedObject;

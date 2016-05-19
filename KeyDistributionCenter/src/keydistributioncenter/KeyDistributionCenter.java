@@ -29,11 +29,12 @@ public class KeyDistributionCenter {
         this.clientKeyPairs = new ArrayList();
         this.serviceKeyPairs = new ArrayList();
         this.requests = new ArrayList();
-        this.tgs = new TicketGrantingService();
+        this.tgs = new TicketGrantingService(this);
         this.as = new AuthenticationServer(tgs, this);
         this.newClientServer = new NewClientServer(this);
         this.newServiceServer = new NewServiceServer(this);
         as.start();
+        tgs.start();
         newClientServer.start();
         newServiceServer.start();
     }
@@ -87,21 +88,6 @@ public class KeyDistributionCenter {
         
         KeyDistributionCenter kdc = new KeyDistributionCenter();
         
-        
-//        Scanner scanner = new Scanner(System.in);
-//        System.out.println("Enter a new username: ");
-//        String username = scanner.nextLine();
-//        System.out.println("Enter a password: ");
-//        String password = scanner.nextLine();
-//        
-//        SecretKey key = KeyGenerator.getInstance("DES").generateKey();
-//        System.out.println("KEY " + key.toString());
-//        DesCodec encrypter = new DesCodec(key);
-//        String encrypted = encrypter.encode(password);
-//        password = null;
-//        String decrypted = encrypter.decode(encrypted);
-//        System.out.println(encrypted);
-//        System.out.println(decrypted);
     }
     
 }
